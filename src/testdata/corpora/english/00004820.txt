@@ -1,0 +1,14 @@
+begin:vcard 
+n:Kirby;Christina M.
+tel;fax:830-401-1168
+tel;work:830-401-1189
+x-mozilla-html:FALSE
+org:State Bank & Trust;Data Processing
+adr:;;;;;;
+version:2.1
+email;internet:geninfo@state-bank.com
+title:Internet Coordinator
+fn:Christina M. Kirby
+end:vcard
+
+
