@@ -11,10 +11,7 @@ import time
 import re
 import multiprocessing
 from multiprocessing import Lock
-from .CDSDocument import CDSDocument
-from .CDS import CDS
 import codecs
-
 
 class MyCorpus:
     """
@@ -55,6 +52,8 @@ class LDA:
         If kwargs has key "configfile" then call initWthConfig else call initWithDataset
 
         """
+        self.logpath="."
+        self.datasetName="UNK"
         if "configfile" in kwargs:
             self.initWithConfig(kwargs.get("configfile"))
         else:
@@ -118,6 +117,7 @@ class LDA:
         no return
         """
         try:
+
             if config.has_section("rules"):
                 self.stopwordfile = config.get("rules", "stopwordfile")
                 self.useStopWords = config.getboolean("rules", "usestopwordlist")
@@ -146,11 +146,11 @@ class LDA:
                             raise
                 else:
                     self.regexlist = []
+            self.logpath = config.get("general", "logpath")
             self.modeltype = config.get("general", "modeltype")
             self.lda = None
             self.corpus = None
             self.datapath = config.get("general", "data")
-            self.logpath = config.get("general", "logpath")
             self.datasetName = config.get("general", "id")
             self.numInferenceProcs = config.getint("general", "numInferenceProcesses")
 
@@ -330,32 +330,33 @@ class LDA:
         removes all special characters
         """
         doc = ""
-        encoding = "UTF-8"
+        encoding = "utf-8"
         if os.path.isfile(docPath):
-            encoding = self.guessFileEncoding(docPath)
+            #encoding = self.guessFileEncoding(docPath)
             docFile = codecs.open(docPath, encoding=encoding).readlines()
-            lines = [line.strip().lower() for line in docFile if os.path.isfile(docPath)]
+            lines = [line.strip().lower().replace("\t"," ").replace("\n"," ").replace("\\n"," ").replace("\\t"," ") for line in docFile if os.path.isfile(docPath)]
 
-        for line in lines:
-            if not self.emailHeader(line) and not self.matchRegex(line) and not self.inPhraseTable(line):
-                if encoding == "UTF-8":
-                    for word in line.split(" "):
-                        if len(word) >= int(self.minwordlength):
-                            word_nospecials = self.removeSpecials(word.lower())
-                            if len(word_nospecials) >= int(self.minwordlength):
+            for line in lines:
+                if not self.emailHeader(line) and not self.matchRegex(line) and not self.inPhraseTable(line):
+                    if encoding == "utf-8":
+                        for word in line.split(" "):
+                            if len(word) >= int(self.minwordlength):
+                                word_nospecials = self.removeSpecials(word.lower())
+                                if len(word_nospecials) >= int(self.minwordlength):
+                                    doc += word_nospecials + " "
+                    else:
+                        for word in line.split(" "):
+                            word_nospecials = self.removeSpecials(str(word), False)
+                            if len(word_nospecials) >= 0:
                                 doc += word_nospecials + " "
-                else:
-                    for word in line.split(" "):
-                        word_nospecials = self.removeSpecials(str(word), True)
-                        if len(word_nospecials) >= 0:
-                            doc += word_nospecials + " "
         return doc, encoding
 
-    def removeSpecials(self, word, alphaonly=True):
+    def removeSpecials(self, word, alphaonly=False):
         """
         Removes any character that is not alphabetic or space
         """
         symbols = "!@#$%^&*()[]{}-_=+;:?><,./"
+        symbols=""
         return "".join(e for e in word if e not in symbols and (e.isalpha() or not alphaonly))
 
     # return "".join(e for e in word if e.isalpha() or e.isspace())
@@ -414,7 +415,7 @@ class LDA:
         print(dictionary)
         stop_ids = [dictionary.token2id[stopword] for stopword in self.stoplist if stopword in dictionary.token2id]
         dictionary.filter_tokens(stop_ids)  # remove stop words
-        dictionary.filter_extremes(no_below=self.no_below, no_above=self.no_above, keep_n=self.dict_size)
+        dictionary.filter_extremes()
         dictionary.compactify()  # remove gaps in id sequence after words that were removed
         dictionary.save(self.dictionaryfile)
         dictionary.save_as_text(self.datasetName + "_wordids.txt")
@@ -501,6 +502,7 @@ class LDA:
         topicfile = codecs.open(fileName, "w", encoding="UTF8")
         x = 1
         for topic in topics:
+            topic=topic[1] #topic[0] is the topic number
             if not includeweights:
                 words = self.removeWeightsTopicWordList(topic)
                 topicfile.write(str(x) + ":" + ",".join(words) + "\n")
@@ -709,7 +711,7 @@ class LDA:
         corpus.close()
         for i in range(numProcs):
             start = end + 1
-            end = start + (numDocs / numProcs)
+            end = start + int(numDocs / numProcs)
             if i == numProcs - 1 and end < numDocs and numDocs - end < (numDocs / numProcs):
                 end = numDocs
             print(("sending document range " + str(start) + ":" + str(end) + " to process for buildCorpus"))
